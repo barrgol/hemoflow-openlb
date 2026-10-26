@@ -104,9 +104,14 @@ set(EXECUTABLE_NAME "hemoFlow")
 add_executable(${EXECUTABLE_NAME} "${EXECUTABLE_NAME}.cpp")
 target_sources(${PROJECT_NAME} PRIVATE "opening.cpp")
 
+###############################################################################
+# External libraries: cnpy, HighFive
+###############################################################################
+
 include_directories("external/cnpy")
 target_sources(${PROJECT_NAME} PRIVATE "external/cnpy/cnpy.cpp")
 
+target_include_directories(${PROJECT_NAME} PRIVATE "external/HighFive/include/highfive")
 
 # Link with the following libraries
 if(BUILD_HDF5)

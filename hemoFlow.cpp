@@ -271,7 +271,7 @@ void processOpenings(string * FlowrateFuncs)
             // opening->createConstantPressureProfile(1.0);
 
             // Set virtual outlet (copy velocity from last time step)
-            opening->createVirtualOutletProfile(lattice);
+            opening->setBC(lattice);
         
         opening->printOpeningDetails();
         pcout << " " << std::endl;
