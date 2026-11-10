@@ -61,7 +61,7 @@ if __name__ == "__main__":
         sys.exit(-1) 
 
     cutWidth = 1 # Might need to set this to 2 if there is more than 1 padding layer for some reason
-    distance = 4
+    distance = 10
 
     confFile = sys.argv[1]
     saveDir = os.path.dirname(confFile)
@@ -137,7 +137,7 @@ if __name__ == "__main__":
         nrrd.write(outputBaseName+"wall_fluid.nrrd", volWithWalls)
 
     print("Size after cutting layers for openings:", volWithWalls.shape)
-    volume = np.product(volWithWalls.shape)
+    volume = np.prod(volWithWalls.shape)
     fluids = np.count_nonzero(volWithWalls == 2)
     print("Volume:", volume)
     print("Fluid nodes:", fluids)

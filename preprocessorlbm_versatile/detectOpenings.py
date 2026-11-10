@@ -129,60 +129,60 @@ def detect_inlets_outlets(data):
     # Note: Only works if all openings lying on the boundary surfces
     # Drawbacks: Problems when detecting edge openings
     
-    # boundaries = []
-    # # Extract the boundary 2d matrix
-    # # Because we know the openings can only locate on the boundaries
-    # # Note data is (z,x,y), but inlet_outlet should be (x,y,z)
-    # boundaries.append(data[0,:,:])
-    # boundaries.append(data[-1,:,:])
-    # boundaries.append(data[:,0,:])
-    # boundaries.append(data[:,-1,:])
-    # boundaries.append(data[:,:,0])
-    # boundaries.append(data[:,:,-1])
-    # # Validation
-    # print(len(boundaries[0]), len(boundaries[2]), len(boundaries[4]))
+    boundaries = []
+    # Extract the boundary 2d matrix
+    # Because we know the openings can only locate on the boundaries
+    # Note data is (z,x,y), but inlet_outlet should be (x,y,z)
+    boundaries.append(data[0,:,:])
+    boundaries.append(data[-1,:,:])
+    boundaries.append(data[:,0,:])
+    boundaries.append(data[:,-1,:])
+    boundaries.append(data[:,:,0])
+    boundaries.append(data[:,:,-1])
+    # Validation
+    print(len(boundaries[0]), len(boundaries[2]), len(boundaries[4]))
     
-    # # Optmized Connected-component labeling
-    # inlets_outlets = []
-    # from scipy.ndimage import label
+    # Optmized Connected-component labeling
+    inlets_outlets = []
+    from scipy.ndimage import label
     
-    # for i, boundary in enumerate(boundaries):
-    #     labeled_array, num_features = label(boundary)
-    #     print(boundary.shape, num_features)
-    #     for j in range(1, num_features+1):
-    #         # A 2xN indexing array, first row is x indices, second row is y indices
-    #         inlet_outlet = np.where(labeled_array == j)
-    #         if i == 0:
-    #             inlet_outlet = np.vstack((inlet_outlet, np.repeat(0, inlet_outlet[0].shape))) # (x,y) -> (x,y,z)
-    #         elif i == 1:
-    #             inlet_outlet = np.vstack((inlet_outlet, np.repeat(data.shape[0]-1, inlet_outlet[0].shape))) # (x,y) -> (x,y,z)
-    #         elif i == 2:
-    #             inlet_outlet = np.vstack((np.repeat(0, inlet_outlet[0].shape), inlet_outlet[1:], inlet_outlet[:1])) # (z,y) -> (x,y,z)
-    #         elif i == 3:
-    #             inlet_outlet = np.vstack((np.repeat(data.shape[1]-1, inlet_outlet[0].shape), inlet_outlet[1:], inlet_outlet[:1])) # (z,y) -> (x,y,z)
-    #         elif i == 4:
-    #             inlet_outlet = np.vstack((inlet_outlet[1:], np.repeat(0, inlet_outlet[0].shape), inlet_outlet[:1])) # (z,x) -> (x,y,z)
-    #         else:
-    #             inlet_outlet = np.vstack((inlet_outlet[1:], np.repeat(data.shape[2]-1, inlet_outlet[0].shape), inlet_outlet[:1])) # (z,x) -> (x,y,z)
+    for i, boundary in enumerate(boundaries):
+        labeled_array, num_features = label(boundary)
+        print(boundary.shape, num_features)
+        for j in range(1, num_features+1):
+            # A 2xN indexing array, first row is x indices, second row is y indices
+            inlet_outlet = np.where(labeled_array == j)
+            if i == 0:
+                inlet_outlet = np.vstack((inlet_outlet, np.repeat(0, inlet_outlet[0].shape))) # (x,y) -> (x,y,z)
+            elif i == 1:
+                inlet_outlet = np.vstack((inlet_outlet, np.repeat(data.shape[0]-1, inlet_outlet[0].shape))) # (x,y) -> (x,y,z)
+            elif i == 2:
+                inlet_outlet = np.vstack((np.repeat(0, inlet_outlet[0].shape), inlet_outlet[1:], inlet_outlet[:1])) # (z,y) -> (x,y,z)
+            elif i == 3:
+                inlet_outlet = np.vstack((np.repeat(data.shape[1]-1, inlet_outlet[0].shape), inlet_outlet[1:], inlet_outlet[:1])) # (z,y) -> (x,y,z)
+            elif i == 4:
+                inlet_outlet = np.vstack((inlet_outlet[1:], np.repeat(0, inlet_outlet[0].shape), inlet_outlet[:1])) # (z,x) -> (x,y,z)
+            else:
+                inlet_outlet = np.vstack((inlet_outlet[1:], np.repeat(data.shape[2]-1, inlet_outlet[0].shape), inlet_outlet[:1])) # (z,x) -> (x,y,z)
                 
-    #         inlets_outlets.append(np.transpose(inlet_outlet))
+            inlets_outlets.append(np.transpose(inlet_outlet))
     
     
     ############################ Method 2: Iterate through all surface voxels (slow) ############################
     # Note: Only work if all openings are parallel to normal planes.
     # Drawbacks: Very slow, large memory consumption
     
-    wall_voxels = zip(*np.where(data == CONSTANTS.WALL_VOXEL))
-    found_fluid_voxels = list(get_all_inlet_outlet_fluid_voxels(wall_voxels, data))
+    # wall_voxels = zip(*np.where(data == CONSTANTS.WALL_VOXEL))
+    # found_fluid_voxels = list(get_all_inlet_outlet_fluid_voxels(wall_voxels, data))
 
-    inlets_outlets = []
-    z = 0
-    for z, x, y in found_fluid_voxels: 
-        if (voxel_is_not_yet_processed(x, y, z, inlets_outlets)):
-            plane = get_neighbouring_unused_voxel_plane(x, y, z, data)
-            inlet_outlet = find_inlet_outlet(x, y, z, data, plane)
-            # if(inlet_outlet is not None):
-            inlets_outlets.append(inlet_outlet)
+    # inlets_outlets = []
+    # z = 0
+    # for z, x, y in found_fluid_voxels: 
+    #     if (voxel_is_not_yet_processed(x, y, z, inlets_outlets)):
+    #         plane = get_neighbouring_unused_voxel_plane(x, y, z, data)
+    #         inlet_outlet = find_inlet_outlet(x, y, z, data, plane)
+    #         # if(inlet_outlet is not None):
+    #         inlets_outlets.append(inlet_outlet)
     
     end = time.time()
     print(f"Find opening time: {end - start} sec")
@@ -205,13 +205,14 @@ def paint_inlets_outlets(inlets_outlets, data):
     ''' Label the openings based on their area size '''
     areas = np.array([len(x) for x in inlets_outlets])
     # Sort the inlets_outlets based on their area size
-    inlets_outlets = [x for _,x in sorted(zip(list(areas), inlets_outlets))]
+    order = np.argsort(areas, kind="stable")
+    inlets_outlets = [inlets_outlets[i] for i in order]
     
     # Only uncomment when using Method 1: Connected component analysis.
     # # The rationale is, using connected component analysis, the algorithm will detect two clusters
     # # for the opening at the domain edge, so we need to remove it.
     # # Note: flawed, use carefully
-    # inlets_outlets.pop(0)
+    inlets_outlets.pop(0)
     
     
     # Hardcoded
