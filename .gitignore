@@ -40,11 +40,16 @@
 # Build
 build/
 
-# Python related
+# Python cache and virtual environments
 __pycache__/
+*/env/
+
+# Input files
+data/
 
 # Output files
 output/
 
 #IDEs
 *.idea/
+*.vscode/

@@ -62,7 +62,7 @@ double* ocData = NULL;
 cnpy::NpyArray openingTangent;
 double* otData = NULL;
 
-string* FlowrateFuncs = NULL;
+std::map<int, std::string> FlowrateFuncs;
 
 // Simulation parameters
 T omega;
@@ -224,7 +224,7 @@ void calcSimulationParameters(T D_m)
 
 }
 
-void processOpenings(string * FlowrateFuncs)
+void processOpenings(std::map<int, std::string>& FlowrateFuncs)
 {
     int numOpenings = openingRadius.shape[0];
     pcout << "-> Number of openings to process: " << numOpenings << std::endl;
@@ -245,33 +245,15 @@ void processOpenings(string * FlowrateFuncs)
 
         // LPA, RPA, and RPA side branches are all outlets
         // IVC, SVC, RHV, MHV, LHV have own flowrate funcs
+        const bool isInlet = (flag == INLET_SVC || flag == INLET_IVC || flag == INLET_RHV || flag == INLET_MHV || flag == INLET_LHV);
         
-        if (flag >= INLET_SVC && flag <= OUTLET_SIDE_V) {   // Inlets
+        if (isInlet) {
             opening->createPoiseauilleProfile(U_AVG_LB);
-            // opening->createBluntVelocityProfile(U_AVG_LB);
-            if(flag==INLET_SVC)
-                opening->loadScaleFunction(FlowrateFuncs[0], C_l);
-            else if(flag==INLET_IVC)
-                opening->loadScaleFunction(FlowrateFuncs[1], C_l);
-            else if(flag==INLET_RHV)
-                opening->loadScaleFunction(FlowrateFuncs[2], C_l);
-            else if(flag==INLET_MHV)
-                opening->loadScaleFunction(FlowrateFuncs[3], C_l);
-            else if(flag==INLET_LHV)
-                opening->loadScaleFunction(FlowrateFuncs[4], C_l);
-            else if(flag==OUTLET_RPA)
-                opening->loadScaleFunction(FlowrateFuncs[5], C_l);
-            else if(flag==OUTLET_LPA)
-                opening->loadScaleFunction(FlowrateFuncs[6], C_l);
-            else if(flag==OUTLET_SIDE_V)
-                opening->loadScaleFunction(FlowrateFuncs[7], C_l);
+            opening->loadScaleFunction(FlowrateFuncs[flag], C_l);
         }
-        else
-            // // Set pressure outlets with 1.0 pressure
-            // opening->createConstantPressureProfile(1.0);
-
-            // Set virtual outlet (copy velocity from last time step)
-            opening->setBC(lattice);
+        else {
+            opening->createConstantPressureProfile(1.0);   // all outlets, as in the paper
+        }
         
         opening->printOpeningDetails();
         pcout << " " << std::endl;
@@ -707,7 +689,6 @@ int main(int argc, char *argv[])
         cnpy::NpyArray nz = geom_npz["Nz"];
         Nz = (nz.data<int>())[0];
         pcout << "Domain size: " << Nx << " x " << Ny << " x " << Nz << std::endl;
-
         pcout << "Resolution [m]: " << C_l << std::endl;
 
         // ***************************** Opening information ***************************** //
@@ -735,17 +716,28 @@ int main(int argc, char *argv[])
         int num_funcs;
         xml["geometry"]["NumberofFlowrateFuncs"].read(num_funcs);
 
-        FlowrateFuncs = new string[num_funcs];
-        xml["geometry"]["inletFlowrateFunc_SVC"].read(FlowrateFuncs[0]);
-        xml["geometry"]["inletFlowrateFunc_IVC"].read(FlowrateFuncs[1]);
-        xml["geometry"]["inletFlowrateFunc_RHV"].read(FlowrateFuncs[2]);
-        xml["geometry"]["inletFlowrateFunc_MHV"].read(FlowrateFuncs[3]);
-        xml["geometry"]["inletFlowrateFunc_LHV"].read(FlowrateFuncs[4]);
-        xml["geometry"]["outletFlowrateFunc_RPA"].read(FlowrateFuncs[5]);
-        xml["geometry"]["outletFlowrateFunc_LPA"].read(FlowrateFuncs[6]);
-        xml["geometry"]["outletFlowrateFunc_SIDE_V"].read(FlowrateFuncs[7]);
-        xml["geometry"]["outletFlowrateFunc_SIDE_P"].read(FlowrateFuncs[8]); // pressure outlet
-        xml["geometry"]["outletFlowrateFunc_OutFlow"].read(FlowrateFuncs[9]);
+        std::string flowrateFuncPath;
+
+        xml["geometry"]["inletFlowrateFunc_SVC"].read(flowrateFuncPath);
+        FlowrateFuncs.insert({INLET_SVC, flowrateFuncPath});
+
+        xml["geometry"]["inletFlowrateFunc_IVC"].read(flowrateFuncPath);
+        FlowrateFuncs.insert({INLET_IVC, flowrateFuncPath});
+        
+        xml["geometry"]["inletFlowrateFunc_RHV"].read(flowrateFuncPath);
+        FlowrateFuncs.insert({INLET_RHV, flowrateFuncPath});
+
+        xml["geometry"]["inletFlowrateFunc_MHV"].read(flowrateFuncPath);
+        FlowrateFuncs.insert({INLET_MHV, flowrateFuncPath});
+
+        xml["geometry"]["inletFlowrateFunc_LHV"].read(flowrateFuncPath);
+        FlowrateFuncs.insert({INLET_LHV, flowrateFuncPath});
+
+        // xml["geometry"]["outletFlowrateFunc_RPA"].read(FlowrateFuncs[5]);
+        // xml["geometry"]["outletFlowrateFunc_LPA"].read(FlowrateFuncs[6]);
+        // xml["geometry"]["outletFlowrateFunc_SIDE_V"].read(FlowrateFuncs[7]);
+        // xml["geometry"]["outletFlowrateFunc_SIDE_P"].read(FlowrateFuncs[8]); // pressure outlet
+        // xml["geometry"]["outletFlowrateFunc_OutFlow"].read(FlowrateFuncs[9]);
 
 
         // **************** Load in geometry flag data
@@ -785,8 +777,7 @@ int main(int argc, char *argv[])
             MPI_Win_allocate_shared(sizeof(int8_t) * Nx*Ny*Nz, sizeof(int8_t), MPI_INFO_NULL, node_comm, &gfData, &win);
             dataset.read(gfData);
             
-        }
-        else {
+        } else {
             int u_sh = sizeof(int8_t);
             MPI_Win_allocate_shared(0, sizeof(int8_t), MPI_INFO_NULL, node_comm, &gfData, &win);
             MPI_Win_shared_query(win, 0, &size_of_data, &u_sh, &gfData);
@@ -838,7 +829,7 @@ int main(int argc, char *argv[])
 
     // TODO: IMPORTANT! - Work out proper sparse mode, we waste up to 90% numerical cells. Take a hint from HemoCell.
     bool sparse = true;
-    T cSmago = 0.14;
+    // T cSmago = 0.14;
     if(sparse) {
         pcout << "Setting simulation domain mask for sparse decomposition..." << endl;
         MultiScalarField3D<int> *flagMatrix = new MultiScalarField3D<int>(Nx,Ny,Nz);
@@ -887,7 +878,7 @@ int main(int argc, char *argv[])
     pcout << "Wall defined" << std::endl;
 
     // gfData is very large whehn resolution is high, deallocate it to save more RAM space
-    MPI_Win_free(&win);
+    // MPI_Win_free(&win);
 
     // TODO: add some reparallelize here, check if it plays nice with checkpointing
 
@@ -947,9 +938,7 @@ int main(int argc, char *argv[])
 
         if(saveInitState){
             pcout << "Saving initial state with flow diverter..." << endl;
-
             if(write2hdf5)  writeHDF5(*lattice, -1, outDir);
-
         }
 
         // Record the computing time of 500 iteration
@@ -963,7 +952,7 @@ int main(int argc, char *argv[])
             T cE = computeAverageEnergy(*lattice);
             dE = cE - prevE; prevE = cE;
     
-            if(stat_cycle % 500 == 0) {
+            if(stat_cycle % 50 == 0) {
                 WarmUpTime = global::timer("WarmUpTime").stop();
 
                 if (std::isnan(cE)){
@@ -987,9 +976,7 @@ int main(int argc, char *argv[])
 
         if (saveZeroState){
             pcout << "Saving time step 0..." << endl;
-
                 if(write2hdf5)  writeHDF5(*lattice, 0, outDir);
-
         }
         
         // Set the counter back
@@ -1003,8 +990,7 @@ int main(int argc, char *argv[])
     global::timer("ComputeTime").restart();
 
     while(stat_cycle*C_t <= simLength + C_t)
-    {
-        
+    {       
         // very inefficient! The idea is to capture the divergence point
         T cE = computeAverageEnergy(*lattice);
 
@@ -1015,8 +1001,12 @@ int main(int argc, char *argv[])
         } 
 
         
-        if(stat_cycle % 1000 == 0) {
+        if(stat_cycle % 50 == 0) {
+            T uMax   = computeMax(*computeVelocityNorm(*lattice));
+            T rhoMin = computeMin(*computeDensity(*lattice));
+            T rhoMax = computeMax(*computeDensity(*lattice));
             pcout << "\rTime: " << stat_cycle*C_t << "s / " << simLength << "s" << " [" << stat_cycle << " / " << std::round(simLength/C_t) << "] " << " - Energy: " << cE << std::endl;
+            pcout << "iter " << stat_cycle << "  max|u|_lb = " << uMax << "  rho in [" << rhoMin << ", " << rhoMax << "]" << std::endl;
         }
 
         // Impose boundary conditions
@@ -1031,13 +1021,9 @@ int main(int argc, char *argv[])
 
         // Save VTK output 
         if(stat_cycle % saveFrequency == 0) {
-
             global::timer("ComputeTime").stop();
-
             pcout << "Writing output at: " << stat_cycle << " (" << stat_cycle*C_t << " s)." << endl;
-
             if(write2hdf5)  writeHDF5(*lattice, stat_cycle, outDir);
-
             global::timer("ComputeTime").start();
             
         }

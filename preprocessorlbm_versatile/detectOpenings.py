@@ -205,8 +205,7 @@ def paint_inlets_outlets(inlets_outlets, data):
     ''' Label the openings based on their area size '''
     areas = np.array([len(x) for x in inlets_outlets])
     # Sort the inlets_outlets based on their area size
-    order = np.argsort(areas, kind="stable")
-    inlets_outlets = [inlets_outlets[i] for i in order]
+    inlets_outlets = [x for _,x in sorted(zip(list(areas), inlets_outlets))]
     
     # Only uncomment when using Method 1: Connected component analysis.
     # # The rationale is, using connected component analysis, the algorithm will detect two clusters
@@ -262,16 +261,16 @@ def detectOpenings(inputArray, wall_path):
 
     # # Append surrounding layer to avoid boundary checking (THIS SHOULD NOT BE NECESSARY! - > FLUID ON THE EDGE OF THE DOMAIN!)
     # # Note that if you use Method 1 to detect opening voxels, you can not append surrounding layers, just comment the following line out
-    data = np.pad(inputArray, 1, 'constant')
+    # data = np.pad(inputArray, 1, 'constant')
     data = inputArray
 
     # Detect openings
     opening_ids, openingCenter, inlets_outlets, result = detect_inlets_outlets(data)
 
     # Return result without outer layer (For Method 2)
-    return (opening_ids, openingCenter, inlets_outlets, result[1:-1, 1:-1, 1:-1].astype('int8', copy=False) )
+    # return (opening_ids, openingCenter, inlets_outlets, result[1:-1, 1:-1, 1:-1].astype('int8', copy=False) )
     # (For Method 1)
-    # return (opening_ids, openingCenter, inlets_outlets, result.astype('int8', copy=False) )
+    return (opening_ids, openingCenter, inlets_outlets, result.astype('int8', copy=False) )
 
 
 if __name__ == "__main__":

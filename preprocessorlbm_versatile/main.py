@@ -36,7 +36,7 @@ def generateCutList(voxelDomainSize, radiusTangentVoxelList):
     sidesToCut = np.zeros(6)
     
     # If centerline point is within this distance of the boundary it is considered an opening
-    distance = 4  # 4 voxel distance: note, cutting away unused layers might influence this!
+    distance = 12  # 4 voxel distance: note, cutting away unused layers might influence this!
 
     if DEBUG_MODE:
             print("-> (DEBUG) generatin cutlist -> voxelDomainSize:", voxelDomainSize) 
@@ -61,7 +61,7 @@ if __name__ == "__main__":
         sys.exit(-1) 
 
     cutWidth = 1 # Might need to set this to 2 if there is more than 1 padding layer for some reason
-    distance = 10
+    distance = 20
 
     confFile = sys.argv[1]
     saveDir = os.path.dirname(confFile)
@@ -189,7 +189,7 @@ if __name__ == "__main__":
     print("File:", outputBaseName+"c.npz")
 
     #np.savez(sys.argv[2]+".npz", geometryFlag=paintedOpenings, openingDescr=openingDescr, stent=voxel_stent_final.astype(np.short, copy=False))
-    np.savez_compressed(outputBaseName+"ops.npz",
+    np.savez(outputBaseName+"ops.npz",
                         dx=np.array([DX]).astype(np.double, copy=False),
                         openingIndex=np.array(openingIndex).astype(np.int8, copy=False), 
                         openingRadius=np.array(openingRadius).astype(np.double, copy=False), 
