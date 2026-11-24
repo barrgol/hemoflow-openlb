@@ -1,55 +1,27 @@
-#### New fetures:
+# hemoflow-openlb
 
-##### Pre-processing:
+The fork is based on the [hemoflow](https://github.com/gzavo/hemoflow) project - a Lattice-Boltzmann Method (LBM) framework for blood flow simulations based on [Palabos](https://gitlab.com/unigespc/palabos). The main goal of this repository is to port existing Palabos implementation to [OpenLB](https://gitlab.com/openlb) and extend it with support for GPU-based execution.
 
-1. Added parallel processing to the voxelize() function.
+Initial starting point for refactoring has been tagged as [start-point-for-openlb-port-2026-11](https://github.com/barrgol/hemoflow-openlb/releases/tag/start-point-for-openlb-port-2026-11) (commit hash *`4d5fdf0bf7070aab0b6e0abde5e41927218a3984`*).
 
-2. Added the connected-component analysis method to detect the opening voxels.
-   
-   Aadvntage: very fast, execution time does not scale with problem size.
-   
-   Drawbacks: has problem detecting opening voxels on the boundary edge.
+## Known issues (before porting to OpenLB)
 
-3. Added the feature to detect multiple inlets. However, hardcoded. One can change the following lines according to the specific geometry.
-   
-   Line 61 in `readCL.py` is used to define the inlets so that the direction of the inflow points inside.
-   
-   Line 216 ~ 249 in `detectOpenings.py` are used to paint the openings with different labels.
+**Preprocessor**:
 
-4. Seperated the opening information from the geometry flag. Now the opening information is stored in a npz file and the geometry flag is stored in a compressed HDF5 file.
+- [ ] There is no "easy" way for switching between the two methods for detecting inlets/outlets. Switching relies on commenting/uncommenting certain code sections.
 
-##### HemoFlow:
+- [ ] Both methods for openings detection require specific geometry setup (either all openings located on boundary surfaces or all openings parallel to the normal planes).
 
-1. Changed the XML structure, the details can be found in the `ExampleXML.xml`. 
+- [ ] Labelling the openings relies on hardcoded `paint_dic` variable in `detectOpenings.py`, requiring explicit visual validation of the voxelization results.
 
-2. Added the support of multiple inlets geometry. However, still hardcoded. Change the following lines according to the geometry.
-   
-   Line 247 ~ 268 in `hemoFlow.cpp` are used to define the boundary velocity/pressure profile and load the corresponding flowrate function.
-   
-   Line 731 ~ 740 in `hemoFlow.cpp` are used to read the flowrate functions.
-   
-   Line 52, 54, 198, 216, 228, 264 in `opening.cpp` are used to determine the pressure outlet.
+**Simulation code:**
 
-3. Optimized the RAM utilization by MPI shared memory.
+- [ ] Simulation output is based on the inefficient and not actively supported `XDMF` format (see [VTK HDF Reader](https://www.kitware.com/vtk-hdf-reader/) article at Kitware's website)
 
-4. Added the Smagorinsky model to implement LES.
+- [ ] Correctness of inlet/outlet labels relies on hardcoded constants in `globals.h` which are not cross-validated with voxelization output. This means that, if the opening IDs assigned at the pre-processing step don't match the expectations, a change might be required in both the preprocessor and `globals.h`.
 
-5. Improve the Output efficiency significantly by utilizing HDF5 and Xdmf3
+- [ ] Switching between Direct Numerical Simulation (DNS) and LES-based simulation requires commenting/uncommenting multiple code sections in `hemoFlow.cpp`.
 
-#### TODO
+- [ ] (*Unverified*) Parallel-CPU code is potentially (very) inefficient. Notes from the previous developer suggest that all voxels are read to each MPI thread, leading to massive memory overhead.
 
-##### Pre-processing:
-
-1. Improve the efficiency of pre-processor, possibly needs a re-write in C or C++.
-
-2. Improve the applicability of opening detection for multiple inlets and outlets, preferably with a graphicl interface.
-
-3. Find a solution to deal with non-perpendicular openings.
-
-##### HemoFlow:
-
-1. Improve the applicability of opening detection, so that no hardcoded is needed.
-
-2. Only read necessary geometry flag voxels to each MPI thread to prevent RAM waste.
-
-3. Remove Xdmf3 since it is not actively maintained. Utilize the VTK HDF Reader ([VTK HDF Reader (kitware.com)](https://www.kitware.com/vtk-hdf-reader/)).
+- [ ] (*Unverified*) Max. geometry velocity calculated at snapshots doesn't match the values expected at the inlets, possibly indicating faulty logic around the flow rate scale functions.
