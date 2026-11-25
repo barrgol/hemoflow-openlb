@@ -122,6 +122,39 @@ The list utilizes the [MoSCoW method](https://en.wikipedia.org/wiki/MoSCoW_metho
 
 - [ ] The program could support logic for **porous vessel walls**, including input porosity data
 
+## How to use it?
+
+**[WIP]**: This section is a work-in-progress and will be expanded in the future. At the time of writing, none of the actual simulation logic is implemented yet.
+
+`hemoflow-openlb` uses [OpenLB 1.9.0](https://gitlab.com/openlb/release/-/tree/1.9.0) as a git submodule. Cloning projects that use git submodules by default results in an empty submodule folder, without any of the actual files.
+
+To clone the repository **and** fetch the submodule contents run:
+
+```
+git clone --recurse-submodules https://github.com/barrgol/hemoflow-openlb.git
+```
+
+or equivalent, split into two commands:
+
+```
+git clone https://github.com/barrgol/hemoflow-openlb.git
+git submodule update --init
+```
+
+The OpenLB submodule should contain version 1.9.0 independently of what's the current most-recent OpenLB release. Run:
+
+```
+git submodule status
+```
+
+and verify that the output is equal to:
+
+```
+145cd54810b468f4b6fd3ed86b10644264841578 openlb (1.9.0)
+```
+
+which is the commit hash of OpenLB release 1.9.0.
+
 ## Known issues (before porting to OpenLB)
 
 **Preprocessor**:

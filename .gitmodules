@@ -1,0 +1,4 @@
+[submodule "openlb"]
+	path = openlb
+	url = https://gitlab.com/openlb/release.git
+	ignore = dirty
