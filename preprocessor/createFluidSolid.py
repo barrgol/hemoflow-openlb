@@ -6,21 +6,23 @@ Created on Wed Sep 07 16:32:07 2011
 
 Input labeling:
     0 - unused
-    1 - fluid
+    1 - fluidx
 
 Output labeling:
     0 - unused
     1 - wall
-    2 - fluid
+    2 - fluidx
 
 	
 Short description:
 	Takes a boolean voxel description as input and outputs
-    wall and fluid cells to nrrd.
+    wall and fluidx cells to nrrd.
 	
 """
 
 import numpy as np
+import multiprocessing
+import time
 
 def roll_zeropad(a, shift, axis=None):
     """
@@ -73,8 +75,7 @@ def roll_zeropad(a, shift, axis=None):
         return res.reshape(a.shape)
     else:
         return res
-
-
+    
 def removeUnusedOuterLayers(data):
 
     print("Removing unused outer layers...")
@@ -83,27 +84,22 @@ def removeUnusedOuterLayers(data):
     sliced = np.array([0,x,0,y,0,z])
 
     print("Original bounds:", sliced)
-
+    
     while(np.max(data[sliced[0],:,:]) == 0):
         sliced[0] = sliced[0]+1
         #data = data[1:,:,:]
-    
     while(np.max(data[sliced[1]-1,:,:]) == 0):
         sliced[1] = sliced[1]-1
         #data = data[:-1,:,:]
-    
     while(np.max(data[:,sliced[2],:]) == 0):
         sliced[2] = sliced[2]+1
         #data = data[:,1:,:]
-
     while(np.max(data[:,sliced[3]-1,:]) == 0):
         sliced[3] = sliced[3]-1
         #data = data[:,:-1,:]
-    
     while(np.max(data[:,:,sliced[4]]) == 0):
         sliced[4] = sliced[4]+1
         #data = data[:,:,1:]
-
     while(np.max(data[:,:,sliced[5]-1]) == 0):
         sliced[5] = sliced[5]-1
         #data = data[:,:,:-1]
@@ -114,11 +110,10 @@ def removeUnusedOuterLayers(data):
 
     return data, sliced
 
-
-def createWalls(inputArray, cutList, cutWidth = 1):
+def createWalls(inputArray, cutList, cutWidxth = 1):
     
     data1 = inputArray
-    # Add extra layer of 0 (width 1) to allow for fluid next to the domain boundary.
+    # Add extra layer of 0 (widxth 1) to allow for fluidx next to the domain boundary.
     # data1 = np.pad(inputArray, 1, 'constant')
 
     #Create a cpoy
@@ -126,6 +121,9 @@ def createWalls(inputArray, cutList, cutWidth = 1):
 
     print("Calculating boundary...")
     
+    start = time.time()
+
+    # Serial
     #Circular bool shift to paint walls
     for l in range(-1,2):
         a = roll_zeropad(data1,l,0)
@@ -134,18 +132,24 @@ def createWalls(inputArray, cutList, cutWidth = 1):
             for n in range(-1,2):
                 c = roll_zeropad(b,n,2)
                 data2 = data2 | c
+    
+    end = time.time()
+    print(f"roll_zeropad time: {end - start}")
                 
-    #cut out fluid part, so wall remains
+    #cut out fluidx part, so wall remains
     data3 = data2-data1
     
     #Convert datatype to int to allow third label
-    data3 = data3.astype(int)
+    data3 = data3.astype('int8')
     
-    #Paint fluid cells back
+    #Paint fluidx cells back
     data3[data1==1]=2
 
     # Remove layers with no information
+    start = time.time()
     data3, sliced = removeUnusedOuterLayers(data3)
+    end = time.time()
+    print(f"removeUnusedOuterLayers time: {end - start}")
 
     # Cutlist meaning:
     # 0,1 => Xmin, Xmax
@@ -154,25 +158,25 @@ def createWalls(inputArray, cutList, cutWidth = 1):
 
     # Cut outer layer (x,y,z)
     if 0 in cutList:
-        data3 = data3[cutWidth:,:,:]
+        data3 = data3[cutWidxth:,:,:]
     if 1 in cutList:
-        data3 = data3[:-cutWidth,:,:]
+        data3 = data3[:-cutWidxth,:,:]
     if 2 in cutList:
-        data3 = data3[:,cutWidth:,:]
+        data3 = data3[:,cutWidxth:,:]
     if 3 in cutList:
-        data3 = data3[:,:-cutWidth,:]
+        data3 = data3[:,:-cutWidxth,:]
     if 4 in cutList:
-        data3 = data3[:,:,cutWidth:]
+        data3 = data3[:,:,cutWidxth:]
     if 5 in cutList:
-        data3 = data3[:,:,:-cutWidth]
+        data3 = data3[:,:,:-cutWidxth]
 
-    return data3.astype(np.short, copy=False), sliced
+    return data3.astype('int8', copy=False), sliced
 
 
 if __name__ == "__main__":
     import sys
     if len(sys.argv) < 3:
-        print("Usage:", sys.argv[0], "input.nrrd output.nrrd \"<list of sides to cut>\" ")
+        print("Usage:", sys.argv[0], "input.nrrd output.nrrd \"<list of sidxes to cut>\" ")
         print("    e.g.:", sys.argv[0], "input.nrrd output.nrrd \"0 5\" ")
         sys.exit(-1) 
     

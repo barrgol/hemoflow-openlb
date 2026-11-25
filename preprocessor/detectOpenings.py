@@ -1,6 +1,10 @@
 import sys
 import numpy as np
 from constants import const
+import pickle
+import time
+import multiprocessing
+# import pyvista as pv
 # from operator import itemgetter
 
 CONSTANTS = const()
@@ -101,26 +105,89 @@ def recur_find_inlet_outlet(x, y, z, prev_x, prev_y, prev_z, result, data, plane
                         result = recur_find_inlet_outlet(x_n, y_n, z_n, x, y, z, result, data, plane)
     return result
 
+def find_openings(fluid_voxel, data):
+    z, x, y = fluid_voxel
+    plane = get_neighbouring_unused_voxel_plane(x, y, z, data)
+    inlet_outlet = find_inlet_outlet(x, y, z, data, plane)
+    # if(inlet_outlet is not None):
+    return inlet_outlet
+
 def detect_inlets_outlets(data):
     """ Detects all inlets and outlets of the vessel model. Assumes the following:
         - The vessel has only one inlet.
         - All outlets are smaller in diameter than the inlets.
         - The inlets and outlets are cut parallel to the x, y or z plane.
+        - The openings are located on the boundaries
     """
     print("Detecting all fluid voxels surrounded by an unused voxel...")
     #print(len(data) * len(data[0]) * len(data[0][0]))
-    wall_voxels = zip(*np.where(data == CONSTANTS.WALL_VOXEL))
-    found_fluid_voxels = list(get_all_inlet_outlet_fluid_voxels(wall_voxels, data))
-    # voxel_count = len(found_fluid_voxels)
+    
+    start = time.time()
+    
+    
+    ############################ Method 1: Connected component analysis (very fast) ############################
+    # Note: Only works if all openings lying on the boundary surfces
+    # Drawbacks: Problems when detecting edge openings
+    
+    boundaries = []
+    # Extract the boundary 2d matrix
+    # Because we know the openings can only locate on the boundaries
+    # Note data is (z,x,y), but inlet_outlet should be (x,y,z)
+    boundaries.append(data[0,:,:])
+    boundaries.append(data[-1,:,:])
+    boundaries.append(data[:,0,:])
+    boundaries.append(data[:,-1,:])
+    boundaries.append(data[:,:,0])
+    boundaries.append(data[:,:,-1])
+    # Validation
+    print(len(boundaries[0]), len(boundaries[2]), len(boundaries[4]))
+    
+    # Optmized Connected-component labeling
     inlets_outlets = []
+    from scipy.ndimage import label
+    
+    for i, boundary in enumerate(boundaries):
+        labeled_array, num_features = label(boundary)
+        print(boundary.shape, num_features)
+        for j in range(1, num_features+1):
+            # A 2xN indexing array, first row is x indices, second row is y indices
+            inlet_outlet = np.where(labeled_array == j)
+            if i == 0:
+                inlet_outlet = np.vstack((inlet_outlet, np.repeat(0, inlet_outlet[0].shape))) # (x,y) -> (x,y,z)
+            elif i == 1:
+                inlet_outlet = np.vstack((inlet_outlet, np.repeat(data.shape[0]-1, inlet_outlet[0].shape))) # (x,y) -> (x,y,z)
+            elif i == 2:
+                inlet_outlet = np.vstack((np.repeat(0, inlet_outlet[0].shape), inlet_outlet[1:], inlet_outlet[:1])) # (z,y) -> (x,y,z)
+            elif i == 3:
+                inlet_outlet = np.vstack((np.repeat(data.shape[1]-1, inlet_outlet[0].shape), inlet_outlet[1:], inlet_outlet[:1])) # (z,y) -> (x,y,z)
+            elif i == 4:
+                inlet_outlet = np.vstack((inlet_outlet[1:], np.repeat(0, inlet_outlet[0].shape), inlet_outlet[:1])) # (z,x) -> (x,y,z)
+            else:
+                inlet_outlet = np.vstack((inlet_outlet[1:], np.repeat(data.shape[2]-1, inlet_outlet[0].shape), inlet_outlet[:1])) # (z,x) -> (x,y,z)
+                
+            inlets_outlets.append(np.transpose(inlet_outlet))
+    
+    
+    ############################ Method 2: Iterate through all surface voxels (slow) ############################
+    # Note: Only work if all openings are parallel to normal planes.
+    # Drawbacks: Very slow, large memory consumption
+    
+    # wall_voxels = zip(*np.where(data == CONSTANTS.WALL_VOXEL))
+    # found_fluid_voxels = list(get_all_inlet_outlet_fluid_voxels(wall_voxels, data))
 
-    z = 0
-    for z, x, y in found_fluid_voxels: 
-        if (voxel_is_not_yet_processed(x, y, z, inlets_outlets)):
-            plane = get_neighbouring_unused_voxel_plane(x, y, z, data)
-            inlet_outlet = find_inlet_outlet(x, y, z, data, plane)
-            # if(inlet_outlet is not None):
-            inlets_outlets.append(inlet_outlet)
+    # inlets_outlets = []
+    # z = 0
+    # for z, x, y in found_fluid_voxels: 
+    #     if (voxel_is_not_yet_processed(x, y, z, inlets_outlets)):
+    #         plane = get_neighbouring_unused_voxel_plane(x, y, z, data)
+    #         inlet_outlet = find_inlet_outlet(x, y, z, data, plane)
+    #         # if(inlet_outlet is not None):
+    #         inlets_outlets.append(inlet_outlet)
+    
+    end = time.time()
+    print(f"Find opening time: {end - start} sec")
+            
+    print(len(inlets_outlets))
 
     return paint_inlets_outlets(inlets_outlets, data)
 
@@ -132,65 +199,78 @@ def paint_inlets_outlets(inlets_outlets, data):
     openingIdx = [] # Label identifying this opening
     openingCenter = []
     # openingQ = [] # Volume ratio assigned to this opening based on area (TODO: angle or R needed for this one)
-
+    
     data_result = np.copy(data)
     
-    # Length of the opening lists
+    ''' Label the openings based on their area size '''
     areas = np.array([len(x) for x in inlets_outlets])
-    inletIdx = np.argmax(areas)
-    inlet = inlets_outlets.pop(inletIdx)
-
-    # Length of the remaining opening lists
-    areas = np.array([len(x) for x in inlets_outlets])
-    pressureOutletIdx = np.argmin(areas)
-    # pressureOutlet = min(inlets_outlets, key=len)
-    pressureOutlet = inlets_outlets.pop(pressureOutletIdx)
-
-    velocityOutlets = inlets_outlets # [o for o in inlets_outlets if (o != inlet and o != pressureOutlet)]
-
-    print("Number of inlets: 1")
-    print("Number of pressure outlets: 1")
-    print("Number of velocity outlet(s): ", len(velocityOutlets))
-
-    openingC = np.zeros(3)
-    openingIdx.append(CONSTANTS.INLET_VOXEL)
-    for (x, y, z) in inlet:
-        data_result[z][x][y] = CONSTANTS.INLET_VOXEL
-        openingC += np.array((z,x,y))
-    openingCenter.append(openingC / len(inlet))
-
-    openingC = np.zeros(3)
-    openingIdx.append(CONSTANTS.OUTLET_VOXEL)
-    for (x, y, z) in pressureOutlet:
-        data_result[z][x][y] = CONSTANTS.OUTLET_VOXEL
-        openingC += np.array((z,x,y))
-    openingCenter.append(openingC / len(pressureOutlet))
-
-    outletCount = 0
-    for outlet in velocityOutlets:
-        openingC = np.zeros(3)
-        openingIdx.append(CONSTANTS.OUTLET_REST_VOXEL + outletCount)
-      
-        for (x, y, z) in outlet:
-            data_result[z][x][y] = CONSTANTS.OUTLET_REST_VOXEL + outletCount
-            openingC += np.array((z,x,y))
-
-        openingCenter.append(openingC / len(outlet))
-        outletCount += 1
+    # Sort the inlets_outlets based on their area size
+    inlets_outlets = [x for _,x in sorted(zip(list(areas), inlets_outlets))]
     
-    return (openingIdx, openingCenter, data_result)
+    # Only uncomment when using Method 1: Connected component analysis.
+    # # The rationale is, using connected component analysis, the algorithm will detect two clusters
+    # # for the opening at the domain edge, so we need to remove it.
+    # # Note: flawed, use carefully
+    inlets_outlets.pop(0)
+    
+    
+    # Hardcoded
+    '''
+    inlet 6: SVC
+    inlet 7: IVC
+    inlet 4: RHV
+    inlet 3: MHV
+    inlet 2: LHV
+    '''
+    
+    '''
+    outlet 5: LPA
+    outlet 8: RPA
+    outlet 0/1: RPA side branches
+    '''
+    
+    paint_dic = {6: CONSTANTS.INLET_SVC, 7: CONSTANTS.INLET_IVC, 4: CONSTANTS.INLET_RHV, 3: CONSTANTS.INLET_MHV,
+                 2: CONSTANTS.INLET_LHV, 5: CONSTANTS.OUTLET_LPA, 8: CONSTANTS.OUTLET_RPA, 0: CONSTANTS.OUTLET_SIDE_P,
+                 1: CONSTANTS.OUTLET_SIDE_V}
 
-def detectOpenings(inputArray):
-    sys.setrecursionlimit(100000)
+    print("Number of inlets: ", 5)
+    print("Number of pressure outlets: 0")
+    print("Number of velocity outlet(s): ", 4)
+    
+    for i, opening in enumerate(inlets_outlets):
+        openingC = np.zeros(3)
+        # Find the corresponding paint id
+        paint_id = paint_dic[i]
+        openingIdx.append(paint_id)
+        
+        for (x, y, z) in opening:
+            data_result[z][x][y] = paint_id
+            openingC += np.array((z,x,y))
+            
+        openingCenter.append(openingC / len(opening))
 
-    # Append surrounding layer to avoid boundary checking (THIS SHOULD NOT BE NECESSARY! - > FLUID ON THE EDGE OF THE DOMAIN!)
-    data = np.pad(inputArray, 1, 'constant')
+    
+    return (openingIdx, openingCenter, inlets_outlets, data_result)
+
+
+def detectOpenings(inputArray, wall_path):
+    sys.setrecursionlimit(10000000)
+    
+    global wall_nrrd_path
+    wall_nrrd_path = wall_path
+
+    # # Append surrounding layer to avoid boundary checking (THIS SHOULD NOT BE NECESSARY! - > FLUID ON THE EDGE OF THE DOMAIN!)
+    # # Note that if you use Method 1 to detect opening voxels, you can not append surrounding layers, just comment the following line out
+    # data = np.pad(inputArray, 1, 'constant')
+    data = inputArray
 
     # Detect openings
-    openingIdx, openingCenter, result = detect_inlets_outlets(data)
+    opening_ids, openingCenter, inlets_outlets, result = detect_inlets_outlets(data)
 
-    # Return result without outer layer
-    return (openingIdx, openingCenter, result[1:-1, 1:-1, 1:-1].astype(np.short, copy=False) )
+    # Return result without outer layer (For Method 2)
+    # return (opening_ids, openingCenter, inlets_outlets, result[1:-1, 1:-1, 1:-1].astype('int8', copy=False) )
+    # (For Method 1)
+    return (opening_ids, openingCenter, inlets_outlets, result.astype('int8', copy=False) )
 
 
 if __name__ == "__main__":

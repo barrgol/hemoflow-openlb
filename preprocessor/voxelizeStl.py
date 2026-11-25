@@ -1,23 +1,27 @@
 # import os.path
 # import sys
 import numpy as np
+import time
 
 import slice
 import perimeter
-# import multiprocessing
+import multiprocessing
+from multiprocessing import set_start_method
 from util import padVoxelArray
 
 from stl import mesh
 
 def voxelize(inputFile, targetElements, isMeshAShell = False, domainData = None, rotation =-1):
     mesh = list(import_stl_file(inputFile))
-
+    
     if domainData is None:
         scale, shift, domain, bounding_box = slice.calculateScaleAndShift(mesh, targetElements)
     else:
         scale, shift, domain, bounding_box = domainData
-
+    
     mesh = list(slice.scaleAndShiftMesh(mesh, scale, shift))
+
+    # vol = np.zeros((domain[2],domain[0],domain[1]), dtype=bool)
     #Note: vol should be addressed with vol[z][x][y]
     
     # If it is a shell mesh, rotate here for different projections!
@@ -27,38 +31,30 @@ def voxelize(inputFile, targetElements, isMeshAShell = False, domainData = None,
     elif rotation == 1:
         mesh = list(slice.swapAxis(mesh, 1, 2))
         domain = [domain[0], domain[2], domain[1]]
-
-    vol = np.zeros((domain[2],domain[0],domain[1]), dtype=bool)
-
-    ## Parallel version
-    # procs = []
-    # manager = multiprocessing.Manager()
-    # return_dict = manager.dict()
-    # #pool = multiprocessing.Pool(multiprocessing.cpu_count())
-    # pool = multiprocessing.Pool(2)
-    # for height in range(int(domain[2])):
-    #     p = multiprocessing.Process(
-    #         target=render_slice,
-    #         args=(mesh, height, domain, return_dict, isMeshAShell)
-    #         )
-    #     procs.append(p)
-    #     p.start()
-
-    # pool.close()
-
-    # for p in procs:
-    #     p.join()
-    # d = return_dict
     
-    ## Serial for debugging
-    d={}
-    for height in range(int(domain[2])):
-        render_slice(mesh, height, domain, d, isMeshAShell)
-
-    for key, value in d.items():
-        vol[key] = value
+    start = time.time()
+    
+    # Parallel
+    multiprocessing.set_start_method('fork')
+    pool = multiprocessing.Pool(16)
+    import functools
+    vol = np.array(pool.map(functools.partial(render_slice, mesh=mesh, domain=domain, isMeshAShell=isMeshAShell), range(int(domain[2]))))
+    
+    pool.close()
+    
+    # # Serial
+    # vol_list = []
+    # for height in range(int(domain[2])):
+    #     vol_list.append(render_slice(height, mesh, domain, isMeshAShell))
+    # vol = np.stack(np.array(vol_list), dtype=bool, axis=0)
+    # del vol_list
+    
+    print(vol.shape)
 
     vol, domain = padVoxelArray(vol)
+    
+    end = time.time()
+    print(f"Voxelization time: {end - start}")
 
     # If it is a shell mesh, rotate back here the different projections!
     if rotation == 0:
@@ -73,12 +69,19 @@ def voxelize(inputFile, targetElements, isMeshAShell = False, domainData = None,
     vol = np.swapaxes(vol, 0, 1)
 
     return (vol, (scale, shift, domain, bounding_box))
+    # return (scale, shift, domain, bounding_box)
 
-def render_slice(mesh, height, domain, return_dict, isMeshAShell):
+# def render_slice(mesh, height, domain, return_dict, isMeshAShell):
+#     lines = slice.toIntersectingLines(mesh, height)
+#     prepixel = np.zeros((domain[0], domain[1]), dtype=bool)
+#     perimeter.linesToVoxels(lines, prepixel, isMeshAShell)
+#     return_dict[height] = prepixel
+
+def render_slice(height, mesh, domain, isMeshAShell):
     lines = slice.toIntersectingLines(mesh, height)
     prepixel = np.zeros((domain[0], domain[1]), dtype=bool)
     perimeter.linesToVoxels(lines, prepixel, isMeshAShell)
-    return_dict[height] = prepixel
+    return prepixel
 
 def import_stl_file(inputFile):
     imported_mesh = mesh.Mesh.from_file(inputFile)

@@ -55,6 +55,10 @@ def getOpeningsFromCenterline(fileName):
     
     rTanData = []
     
+    # inlet line ids. Note, only is correct with the current centerline file !!!!!!!!
+    # How did I know? Hardcoded...... dumb but useful, need to find a portable way
+    # VMTK has some problems with multiple inlets geometry, therefore need to hardcode
+    inlet_line_ids = [4, 5, 6, 7] # and unlabelled inlet
     for ll in range(nLines):
         line = data.GetCell(ll)
         # numPoints = line.GetNumberOfPoints()
@@ -74,17 +78,20 @@ def getOpeningsFromCenterline(fileName):
         for i in idList:
             pArray.append(np.array(points.GetPoint(i)))
         
-        
         r1 = rArray[0]
         r2 = rArray[-1]
         
-        if ll == 0:
+        if ll == 0: # The first inlet!
             v1 = pArray[0]-pArray[1]
             rTanData.append((r1, pArray[0], -v1))  # The inlet should point inwards
         
-        # All other tangents are pointing outwards
         v2 = pArray[-1]-pArray[-3] # Note, the last 2 points are sometimes the same for some reason
-        rTanData.append((r2, pArray[-1], v2))
+        # Inlet! point inwards!
+        if ll in(inlet_line_ids):
+            rTanData.append((r2, pArray[-1], -v2)) 
+        # All other tangents are pointing outwards
+        else: 
+            rTanData.append((r2, pArray[-1], v2))
     
         # print("Line: ", ll)
         # print(r1, pArray[0], v1)

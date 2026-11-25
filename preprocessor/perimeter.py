@@ -30,8 +30,8 @@ def linesToVoxels(lineList, pixels, isShell):
                             isBlack = not isBlack
                             pixels[x][y] = True
 
-            if isBlack:
-                print("An error has occured at x%sz%s - is the geometry watertight?"%(x,lineList[0][0][2]))
+            # if isBlack:
+                # print("An error has occured at x%sz%s - is the geometry watertight?"%(x,lineList[0][0][2]))
 
 
 # Voxelize solid, watertight body
@@ -49,8 +49,8 @@ def linesToVoxelsSolid(lineList, pixels):
                         isBlack = not isBlack
                         pixels[x][y] = True
 
-        if isBlack:
-            print("An error has occured at x%sz%s - is the geometry watertight?"%(x,lineList[0][0][2]))
+        # if isBlack:
+        #     print("An error has occured at x%sz%s - is the geometry watertight?"%(x,lineList[0][0][2]))
 
 
 def linesToVoxelsShell(lineList, pixels):

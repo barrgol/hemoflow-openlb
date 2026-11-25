@@ -108,6 +108,7 @@ def calculateScaleAndShift(mesh, targetElements):
     bounding_box = [mins, maxs]
     ds3 = ds[0]*ds[1]*ds[2]
     vox_scale = (targetElements / ds3 ) ** (1. / 3)
+    
     #domain = map(int, [vox_scale * ds[0], vox_scale * ds[1], vox_scale * ds[2]]) 
     domain = [int(x) for x in [vox_scale * ds[0], vox_scale * ds[1], vox_scale * ds[2]]] 
     shift = [-minimum for minimum in mins]
