@@ -124,6 +124,8 @@ The list utilizes the [MoSCoW method](https://en.wikipedia.org/wiki/MoSCoW_metho
 
 ## How to use it?
 
+### Setting up the project
+
 **[WIP]**: This section is a work-in-progress and will be expanded in the future. At the time of writing, none of the actual simulation logic is implemented yet.
 
 `hemoflow-openlb` uses [OpenLB 1.9.0](https://gitlab.com/openlb/release/-/tree/1.9.0) as a git submodule. Cloning projects that use git submodules by default results in an empty submodule folder, without any of the actual files.
@@ -154,6 +156,12 @@ and verify that the output is equal to:
 ```
 
 which is the commit hash of OpenLB release 1.9.0.
+
+### Dependencies
+
+- (*) **NVIDIA CUDA 12**: release 12.4.x or newer, but no later than 12.9.x
+
+(*) OpenLB developers claim that version 1.9.0 supports CUDA 12.4+, but our local test runs with CUDA 13.3 failed, seemingly due to a change in CUDA's header structure introduced with CUDA 13. Local test runs were confirmed to work with CUDA 12.9.
 
 ## Known issues (before porting to OpenLB)
 

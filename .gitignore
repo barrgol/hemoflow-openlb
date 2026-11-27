@@ -30,6 +30,7 @@
 *.exe
 *.out
 *.app
+hemoflow
 
 # Palabos
 # palabos/
@@ -49,6 +50,7 @@ data/
 
 # Output files
 output/
+tmp/
 
 #IDEs
 *.idea/
